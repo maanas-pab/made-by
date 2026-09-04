@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Artist, DEMO_ARTISTS, Artwork, Exhibition, Series, FieldNote, StudioItem } from "./data";
-import { cloudEnabled, loadRemote, saveRemote } from "./cloud";
+import { cloudEnabled, loadRemoteById, saveRemoteById, cloudSignIn, cloudSignUp, cloudSignOut, cloudSessionUser } from "./cloud";
 
 interface User { email: string; username: string; }
 
@@ -9,7 +9,13 @@ interface Store {
   user: User | null;
   artists: Artist[];
   myUsername: string | null;
-  signIn: (email: string, username?: string) => void;
+  /** true when Supabase keys exist → real password accounts. false → local demo. */
+  isCloud: boolean;
+  /** Local demo sign-in (no password). Only used when cloud is off. */
+  signInDemo: (email: string, username?: string) => void;
+  /** Real sign-in. Resolves null on success, error message on failure. */
+  signInCloud: (email: string, password: string) => Promise<string | null>;
+  signUpCloud: (email: string, password: string, username?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => void;
   getArtist: (username: string) => Artist | undefined;
   updateArtist: (username: string, patch: Partial<Artist>) => void;
@@ -34,33 +40,66 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [artists, setArtists] = useState<Artist[]>(DEMO_ARTISTS);
   const [savedState, setSavedState] = useState("Saved");
   const [loaded, setLoaded] = useState(false);
+  const [cloudUid, setCloudUid] = useState<string | null>(null);
+
+  const persistLocalUser = (u: User | null) => {
+    try {
+      if (u) localStorage.setItem(LS_USER, JSON.stringify(u));
+      else localStorage.removeItem(LS_USER);
+    } catch {}
+  };
+
+  const displayNameFor = (email: string) =>
+    email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "New Artist";
+
+  const freshArtistFor = (uname: string, email: string): Artist => ({
+    username: uname,
+    name: displayNameFor(email),
+    location: "Your City",
+    disciplines: ["Painting"],
+    bio: "Tell us who you are — one quiet paragraph is enough.",
+    statement: "What do you make, and why?",
+    email, instagram: "@you",
+    theme: { layout: "editorial", palette: "paper", typeface: "cormorant", spacing: "balanced", bg: "#F5F2EC", fg: "#1C1C1A" },
+    isPro: false, published: false,
+    artworks: [], exhibitions: [], series: [], notes: [], studio: [],
+  });
+
+  const ensureArtist = (uname: string, email: string) =>
+    setArtists(prev => (prev.find(a => a.username === uname) ? prev : [...prev, freshArtistFor(uname, email)]));
 
   useEffect(() => {
     (async () => {
-      let localArtists = DEMO_ARTISTS;
-      let localUser: User | null = null;
+      let nextArtists = DEMO_ARTISTS;
+      let nextUser: User | null = null;
       try {
         const a = localStorage.getItem(LS_ARTISTS);
         const u = localStorage.getItem(LS_USER);
         if (a) {
           const parsed = JSON.parse(a);
-          if (Array.isArray(parsed) && parsed.length) localArtists = parsed;
+          if (Array.isArray(parsed) && parsed.length) nextArtists = parsed;
         }
-        if (u) localUser = JSON.parse(u);
+        if (u) nextUser = JSON.parse(u);
       } catch {}
-      // Cloud wins when it exists: logins + pages roam across devices.
-      if (localUser && cloudEnabled()) {
+      if (cloudEnabled()) {
+        // Resume a real session if one exists; its cloud page wins.
         try {
-          const remote = await loadRemote(localUser.email);
-          if (remote && remote.artists.length) {
-            localArtists = remote.artists;
-            localUser = { email: remote.email, username: remote.username };
-            try { localStorage.setItem(LS_USER, JSON.stringify(localUser)); } catch {}
+          const su = await cloudSessionUser();
+          if (su) {
+            setCloudUid(su.id);
+            const remote = await loadRemoteById(su.id);
+            if (remote && remote.artists.length) {
+              nextArtists = remote.artists;
+              nextUser = { email: remote.email, username: remote.username };
+              persistLocalUser(nextUser);
+            } else if (su.email) {
+              nextUser = { email: su.email, username: nextUser?.username ?? su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "") };
+            }
           }
         } catch {}
       }
-      setArtists(localArtists);
-      setUser(localUser);
+      setArtists(nextArtists);
+      setUser(nextUser);
       setLoaded(true);
     })();
   }, []);
@@ -73,62 +112,62 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } catch {}
     setSavedState("Saving…");
     const t = setTimeout(async () => {
-      if (user && cloudEnabled()) {
+      if (user && cloudUid && cloudEnabled()) {
         try {
-          const ok = await saveRemote(user.email, user.username, artists);
+          const ok = await saveRemoteById(cloudUid, user.email, user.username, artists);
           setSavedState(ok ? "Saved to cloud" : "Saved · this device");
           return;
         } catch {}
       }
-      setSavedState("Saved · this device");
+      setSavedState(user && cloudEnabled() && !cloudUid ? "Sign in to save online" : "Saved · this device");
     }, 900);
     return () => clearTimeout(t);
-  }, [artists, user, loaded]);
+  }, [artists, user, cloudUid, loaded]);
 
   const api: Store = useMemo(() => ({
     user, artists,
     myUsername: user?.username ?? null,
     savedState,
-    signIn: (email, username) => {
+    isCloud: cloudEnabled(),
+    signInDemo: (email, username) => {
       const uname = (username || email.split("@")[0]).toLowerCase().replace(/[^a-z0-9]+/g, "");
       const u = { email, username: uname };
       setUser(u);
-      localStorage.setItem(LS_USER, JSON.stringify(u));
-      // If this login already lives in the cloud, pull it down (new device).
-      // Otherwise back up this fresh state immediately.
-      if (cloudEnabled()) {
-        loadRemote(email).then(remote => {
-          if (remote && remote.artists.length) {
-            setArtists(remote.artists);
-            const ru = { email: remote.email, username: remote.username };
-            setUser(ru);
-            try { localStorage.setItem(LS_USER, JSON.stringify(ru)); } catch {}
-          } else {
-            setArtists(current => {
-              saveRemote(email, uname, current).catch(() => {});
-              return current;
-            });
-          }
-        }).catch(() => {});
-      }
-      setArtists(prev => {
-        if (prev.find(a => a.username === uname)) return prev;
-        const fresh: Artist = {
-          username: uname,
-          name: email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "New Artist",
-          location: "Your City",
-          disciplines: ["Painting"],
-          bio: "Tell us who you are — one quiet paragraph is enough.",
-          statement: "What do you make, and why?",
-          email, instagram: "@you",
-          theme: { layout: "editorial", palette: "paper", typeface: "cormorant", spacing: "balanced", bg: "#F5F2EC", fg: "#1C1C1A" },
-          isPro: false, published: false,
-          artworks: [], exhibitions: [], series: [], notes: [], studio: [],
-        };
-        return [...prev, fresh];
-      });
+      persistLocalUser(u);
+      ensureArtist(uname, email);
     },
-    signOut: () => { setUser(null); localStorage.removeItem(LS_USER); },
+    signInCloud: async (email, password) => {
+      const { user: su, error } = await cloudSignIn(email, password);
+      if (error || !su) return error || "Sign in failed.";
+      setCloudUid(su.id);
+      const remote = await loadRemoteById(su.id).catch(() => null);
+      if (remote && remote.artists.length) {
+        setArtists(remote.artists);
+        const u = { email: remote.email, username: remote.username };
+        setUser(u);
+        persistLocalUser(u);
+      } else {
+        // First sign-in (e.g. after email confirmation): adopt this device's page.
+        const uname = (remote?.username || su.email!.split("@")[0]).toLowerCase().replace(/[^a-z0-9]+/g, "");
+        const u = { email: (su.email || email).toLowerCase(), username: uname };
+        setUser(u);
+        persistLocalUser(u);
+        ensureArtist(uname, u.email);
+      }
+      return null;
+    },
+    signUpCloud: async (email, password, username) => {
+      const uname = (username || email.split("@")[0]).toLowerCase().replace(/[^a-z0-9]+/g, "");
+      const { user: su, hasSession, needsConfirmation, error } = await cloudSignUp(email, password);
+      if (error || !su) return { error: error || "Sign up failed.", needsConfirmation: false };
+      const u = { email: email.toLowerCase(), username: uname };
+      setUser(u);
+      persistLocalUser(u);
+      ensureArtist(uname, u.email);
+      if (hasSession) setCloudUid(su.id);
+      return { error: null, needsConfirmation };
+    },
+    signOut: () => { cloudSignOut().catch(() => {}); setCloudUid(null); setUser(null); persistLocalUser(null); },
     getArtist: (username) => artists.find(a => a.username.toLowerCase() === username.toLowerCase()),
     updateArtist: (username, patch) => setArtists(prev => prev.map(a => a.username === username ? { ...a, ...patch } : a)),
     addArtwork: (username, a) => setArtists(prev => prev.map(p => {

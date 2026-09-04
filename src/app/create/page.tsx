@@ -10,7 +10,7 @@ import { SITE } from "@/lib/site";
 const DISCIPLINES = ["Painting", "Photography", "Sculpture", "Mixed Media", "Illustration", "Ceramics", "Textiles", "Digital"];
 
 export default function Create() {
-  const { signIn, updateArtist, addArtwork, getArtist } = useStore();
+  const { signInDemo, signUpCloud, isCloud, updateArtist, addArtwork } = useStore();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -19,7 +19,9 @@ export default function Create() {
   const [files, setFiles] = useState<string[]>([]);
   const [layout, setLayout] = useState("editorial");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
+  const [info, setInfo] = useState("");
 
   const username = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "") || "you";
 
@@ -30,10 +32,18 @@ export default function Create() {
     setFiles(p => [...p, ...urls].slice(0, 6));
   }
 
-  function finish() {
+  async function finish() {
     if (!name.trim()) { setErr("Please tell us your name."); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setErr("Please add a valid email so you can sign back in."); return; }
-    signIn(email, username);
+    if (isCloud) {
+      if (password.length < 6) { setErr("Choose a password (6+ characters) — it's the only key to your page."); return; }
+      setErr("");
+      const { error, needsConfirmation } = await signUpCloud(email, password, username);
+      if (error) { setErr(error); return; }
+      if (needsConfirmation) setInfo("Account created — check your inbox to confirm your email, then sign in from any device.");
+    } else {
+      signInDemo(email, username);
+    }
     setTimeout(() => {
       updateArtist(username, { name, disciplines: discs, location: location || "Your City", theme: { layout: layout as never, palette: "paper", typeface: "cormorant", spacing: "balanced", bg: "#F5F2EC", fg: "#1C1C1A" }, published: true } as never);
       files.forEach((src, i) => addArtwork(username, { title: `Untitled No. ${String(i + 1).padStart(2, "0")}`, year: "2026", medium: discs[0] === "Photography" ? "Archival pigment print" : "Oil on canvas", images: [src], available: false } as never));
@@ -73,7 +83,7 @@ export default function Create() {
           <label onDragOver={e => e.preventDefault()} onDrop={async e => { e.preventDefault(); await onFiles(e.dataTransfer.files); }}
             className="block border border-dashed border-warmgray p-10 text-center cursor-pointer hover:border-ink">
             <p className="text-[14px]">Drop images here, or <span className="underline underline-offset-4">browse files</span></p>
-            <p className="text-[12px] text-warmgray mt-2">JPG / PNG / WEBP · kept on your device in this demo</p>
+            <p className="text-[12px] text-warmgray mt-2">JPG / PNG / WEBP · saved with your page</p>
             <input type="file" accept="image/*" multiple className="hidden" onChange={e => onFiles(e.target.files)} />
           </label>
           {files.length > 0 && <div className="grid grid-cols-3 gap-2 mt-4">{files.map((s, i) => (
@@ -96,10 +106,21 @@ export default function Create() {
             <p className="text-[13px] text-warmgray mt-1">{location || "Your City"} · {discs.join(" / ")}</p>
             <p className="text-[13px] mt-4 border border-line inline-block px-4 py-2">{SITE.domain}/{username}</p>
           </div>
-          <div className="mt-6"><label className="micro-label block mb-2">Email to claim it</label>
-          <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" /></div></>
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="micro-label block mb-2">Email to claim it</label>
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" />
+            </div>
+            {isCloud && (
+              <div>
+                <label className="micro-label block mb-2">Password — the only key to your page</label>
+                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="•••••••• (6+ characters)" autoComplete="new-password" />
+              </div>
+            )}
+          </div></>
         )}
         {err && <p role="alert" className="text-[13px] text-red-800 mt-4">{err}</p>}
+        {info && <p role="status" className="text-[13px] text-ink/70 border border-line bg-softwhite p-3 mt-4">{info}</p>}
         <div className="flex items-center justify-between mt-10">
           <div>{step > 1 && <button onClick={() => { setStep(s => s - 1); setErr(""); }} className="text-[13px] underline underline-offset-4 hover:opacity-60">← Back</button>}</div>
           {step < 6

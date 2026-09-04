@@ -13,7 +13,7 @@ export default function Dashboard() {
 }
 function DashInner() {
   const store = useStore();
-  const { user, myUsername, getArtist, updateArtist, addArtwork, updateArtwork, deleteArtwork, moveArtwork, addExhibition, deleteExhibition, addSeries, addNote, deleteNote, signOut, savedState } = store;
+  const { user, myUsername, isCloud, getArtist, updateArtist, addArtwork, updateArtwork, deleteArtwork, moveArtwork, addExhibition, deleteExhibition, addSeries, addNote, deleteNote, signOut, savedState } = store;
   const [tab, setTab] = useState<Tab>("portfolio");
   const [toast, setToast] = useState("");
 
@@ -51,7 +51,10 @@ function DashInner() {
       <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between border-b hairline">
         <MadeByMark />
         <div className="flex items-center gap-4 text-[13px]">
-          <span className="text-warmgray hidden sm:inline">{savedState === "Saved" ? "● Saved" : "○ Saving…"} · {artist.published ? "Live" : "Draft"}</span>
+          <span className="hidden sm:inline border border-line px-2.5 py-1 text-[12px] text-warmgray" title={isCloud ? "Signed in with a password account" : "Demo sign-in on this browser only"}>
+            {isCloud ? `🔒 ${user?.email}` : "demo sign-in"}
+          </span>
+          <span className="text-warmgray hidden sm:inline">● {savedState} · {artist.published ? "Live" : "Draft"}</span>
           <Link href={`/${artist.username}`} className="hover:opacity-60">View page</Link>
           <button onClick={() => { signOut(); window.location.href = "/"; }} className="hover:opacity-60">Sign out</button>
         </div>
