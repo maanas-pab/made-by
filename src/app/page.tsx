@@ -42,7 +42,7 @@ export default function Home() {
         {/* featured artist card — Maya Chen like reference */}
         <section className="border border-line bg-softwhite">
           <div className="flex items-center justify-between px-5 md:px-8 h-12 border-b hairline text-[12px]">
-            <span className="serif font-medium text-[20px] leading-none">made by</span>
+            <span className="brand-mark">made by</span>
             <div className="hidden md:flex gap-6 text-ink/70">
               <Link href="/mayachen">Portfolio</Link>
               <Link href="/mayachen?section=available">Available Work</Link>

@@ -16,7 +16,7 @@ export function ArtistTopbar({ artist, section }: { artist: Artist; section?: st
   return (
     <header className="border-b" style={{ borderColor: "color-mix(in srgb, currentColor 15%, transparent)" }}>
       <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="serif font-medium tracking-tight text-[22px] leading-none">made by</Link>
+        <Link href="/" className="brand-mark">made by</Link>
         <nav className="hidden md:flex items-center gap-7 text-[13px] opacity-80">
           {links.map(([t, h]) => <Link key={t} href={h} className="hover:opacity-60">{t}</Link>)}
           {artist.instagram && <a href={`https://instagram.com/${artist.instagram.replace("@", "")}`} target="_blank" rel="noreferrer" className="hover:opacity-60">Instagram</a>}
@@ -321,7 +321,7 @@ export function ExhibitionMode({ artist, onClose }: { artist: Artist; onClose: (
     <div role="dialog" aria-modal="true" aria-label="Exhibition view" className="fixed inset-0 z-[80] flex flex-col"
       style={{ background: artist.theme.bg, color: artist.theme.fg }} onMouseMove={() => setShowMeta(true)}>
       <div className={`flex items-center justify-between px-6 h-14 transition-opacity ${showMeta ? "opacity-100" : "opacity-0"}`}>
-        <span className="text-[13px] font-semibold">made by · {artist.name}</span>
+          <span className="brand-mark">made by · {artist.name}</span>
         <div className="flex items-center gap-5 text-[13px]">
           <span className="opacity-60">{i + 1} / {list.length}</span>
           <button onClick={onClose} className="hover:opacity-60" aria-label="Exit exhibition">✕ Close</button>

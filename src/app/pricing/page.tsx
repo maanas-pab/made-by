@@ -18,7 +18,7 @@ export default function Pricing() {
 
         <div className="mt-10 border border-line bg-softwhite p-8 md:p-10 text-left">
           <div className="flex items-baseline justify-between">
-            <p className="serif text-3xl">made by</p>
+            <p className="brand-mark">made by</p>
             <p className="serif text-5xl">$0</p>
           </div>
           <p className="micro-label text-warmgray mt-1">forever · for every artist</p>

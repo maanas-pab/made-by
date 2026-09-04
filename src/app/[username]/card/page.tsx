@@ -12,7 +12,7 @@ export default function ArtistCard({ params }: { params: { username: string } })
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col">
       <div className="mx-auto w-full max-w-6xl px-6 h-14 flex items-center justify-between border-b hairline">
-        <Link href="/" className="font-semibold text-[15px]">made by</Link>
+        <Link href="/" className="brand-mark">made by</Link>
         <Link href={`/${artist.username}`} className="text-[13px] hover:opacity-60">← {artist.name}</Link>
       </div>
       <main className="flex-1 mx-auto w-full max-w-3xl px-6 py-14 text-center">
@@ -20,7 +20,7 @@ export default function ArtistCard({ params }: { params: { username: string } })
         <h1 className="serif text-4xl mt-2">Made by Artist Card</h1>
         {/* card */}
         <div className="mx-auto mt-10 max-w-md border border-line bg-softwhite p-10 shadow-sm">
-          <p className="text-[13px] font-semibold">made by</p>
+          <p className="brand-mark">made by</p>
           <p className="serif text-5xl mt-3">{artist.name}</p>
           <p className="text-[13px] text-warmgray mt-2">{artist.location}</p>
           <p className="text-[13px] mt-1">{artist.disciplines.join(" / ")}</p>

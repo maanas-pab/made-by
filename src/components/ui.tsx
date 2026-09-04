@@ -3,7 +3,7 @@ import React from "react";
 
 export function MadeByMark({ light = false, className = "" }: { light?: boolean; className?: string }) {
   return (
-    <Link href="/" className={`serif font-medium tracking-tight text-[22px] leading-none ${light ? "text-paper" : "text-ink"} ${className}`} aria-label="made by home">
+    <Link href="/" className={`brand-mark ${light ? "text-paper" : "text-ink"} ${className}`} aria-label="made by home">
       made by
     </Link>
   );
@@ -67,7 +67,7 @@ export function SiteFooter({ artistName, artistLocation, minimal = false }: { ar
         {artistLocation && <p className="text-center text-[12px] text-warmgray mb-6">{artistLocation}</p>}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-[13px]">
           <div>
-            <p className="serif text-[20px] leading-none">made by</p>
+            <p className="brand-mark">made by</p>
             <p className="text-warmgray mt-1">For artists.</p>
           </div>
           <div className="flex flex-col gap-1.5 text-warmgray">

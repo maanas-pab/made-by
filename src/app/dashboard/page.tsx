@@ -253,7 +253,7 @@ function DashInner() {
             <div>
               <h2 className="serif text-3xl mb-4">Card & QR</h2>
               <div className="border border-line bg-softwhite p-8 text-center max-w-sm">
-                <p className="text-[13px] font-semibold">made by</p>
+                <p className="brand-mark">made by</p>
                 <p className="serif text-4xl mt-2">{artist.name}</p>
                 <p className="text-[12px] text-warmgray mt-1">{artist.location} · {artist.disciplines.join(" / ")}</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
