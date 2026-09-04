@@ -4,8 +4,8 @@
 
 export const SITE = {
   name: "made by",
-  domain: process.env.NEXT_PUBLIC_SITE_DOMAIN || "madeby.vercel.app",
-  email: "hello@madeby.vercel.app",
+  domain: process.env.NEXT_PUBLIC_SITE_DOMAIN || "madebyart.vercel.app",
+  email: "hello@madebyart.vercel.app",
   get baseUrl() {
     return `https://${SITE.domain}`;
   },
