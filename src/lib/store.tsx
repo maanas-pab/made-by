@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Artist, DEMO_ARTISTS, Artwork, Exhibition, Series, FieldNote, StudioItem } from "./data";
-import { cloudEnabled, loadRemoteById, saveRemoteById, cloudSignIn, cloudSignUp, cloudSignOut, cloudSessionUser } from "./cloud";
+import { cloudEnabled, loadRemoteById, saveRemoteById, cloudRequestLink, cloudFinalizeLink, cloudSignOut, cloudSessionUser } from "./cloud";
 
 interface User { email: string; username: string; }
 
@@ -9,13 +9,14 @@ interface Store {
   user: User | null;
   artists: Artist[];
   myUsername: string | null;
-  /** true when Supabase keys exist → real password accounts. false → local demo. */
+  /** true when Supabase keys exist → magic-link accounts. false → local demo. */
   isCloud: boolean;
-  /** Local demo sign-in (no password). Only used when cloud is off. */
+  /** Local demo sign-in (no email sent). Only used when cloud is off. */
   signInDemo: (email: string, username?: string) => void;
-  /** Real sign-in. Resolves null on success, error message on failure. */
-  signInCloud: (email: string, password: string) => Promise<string | null>;
-  signUpCloud: (email: string, password: string, username?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  /** Sends the magic link. Resolves null on success, error message on failure. */
+  requestLink: (email: string) => Promise<string | null>;
+  /** Picks up a clicked magic link (or resumed session). True when signed in. */
+  refreshCloudSession: () => Promise<boolean>;
   signOut: () => void;
   getArtist: (username: string) => Artist | undefined;
   updateArtist: (username: string, patch: Partial<Artist>) => void;
@@ -136,36 +137,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
       persistLocalUser(u);
       ensureArtist(uname, email);
     },
-    signInCloud: async (email, password) => {
-      const { user: su, error } = await cloudSignIn(email, password);
-      if (error || !su) return error || "Sign in failed.";
-      setCloudUid(su.id);
-      const remote = await loadRemoteById(su.id).catch(() => null);
-      if (remote && remote.artists.length) {
-        setArtists(remote.artists);
-        const u = { email: remote.email, username: remote.username };
-        setUser(u);
-        persistLocalUser(u);
-      } else {
-        // First sign-in (e.g. after email confirmation): adopt this device's page.
-        const uname = (remote?.username || su.email!.split("@")[0]).toLowerCase().replace(/[^a-z0-9]+/g, "");
-        const u = { email: (su.email || email).toLowerCase(), username: uname };
-        setUser(u);
-        persistLocalUser(u);
-        ensureArtist(uname, u.email);
+    requestLink: async (email) => cloudRequestLink(email),
+    refreshCloudSession: async () => {
+      try {
+        const su = await cloudFinalizeLink();
+        if (!su) return false;
+        setCloudUid(su.id);
+        const remote = await loadRemoteById(su.id).catch(() => null);
+        if (remote && remote.artists.length) {
+          setArtists(remote.artists);
+          const u = { email: remote.email, username: remote.username };
+          setUser(u);
+          persistLocalUser(u);
+        } else if (su.email) {
+          // First arrival (new account, or email just confirmed): adopt this device's page.
+          const uname = su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "");
+          const u = { email: su.email, username: uname };
+          setUser(u);
+          persistLocalUser(u);
+          ensureArtist(uname, u.email);
+        }
+        return true;
+      } catch {
+        return false;
       }
-      return null;
-    },
-    signUpCloud: async (email, password, username) => {
-      const uname = (username || email.split("@")[0]).toLowerCase().replace(/[^a-z0-9]+/g, "");
-      const { user: su, hasSession, needsConfirmation, error } = await cloudSignUp(email, password);
-      if (error || !su) return { error: error || "Sign up failed.", needsConfirmation: false };
-      const u = { email: email.toLowerCase(), username: uname };
-      setUser(u);
-      persistLocalUser(u);
-      ensureArtist(uname, u.email);
-      if (hasSession) setCloudUid(su.id);
-      return { error: null, needsConfirmation };
     },
     signOut: () => { cloudSignOut().catch(() => {}); setCloudUid(null); setUser(null); persistLocalUser(null); },
     getArtist: (username) => artists.find(a => a.username.toLowerCase() === username.toLowerCase()),

@@ -1,14 +1,15 @@
 "use client";
-/* Cloud persistence + real authentication (Supabase).
+/* Cloud persistence + passwordless authentication (Supabase magic links).
    - ZERO config: env vars absent → everything stays local (demo mode).
-   - Configured: email+password accounts via Supabase Auth. Sessions persist
-     in the browser; rows are owner-only (RLS: auth.uid() = id), so typing
-     someone else's email gets you nowhere — there is no password to guess
-     and no row you can read.
+   - Configured: enter email → click the link → you're in. Supabase Auth owns
+     sessions; rows are owner-only (RLS: auth.uid() = id), so typing someone
+     else's email gets you nowhere — the link goes to THEIR inbox, not yours.
    Setup: free Supabase project → run supabase/schema.sql → set the two
-   NEXT_PUBLIC_ vars (local .env.local + Vercel env). In Supabase dashboard:
-   Authentication → Sign In/Up → turn OFF "Confirm email" for instant testing. */
+   NEXT_PUBLIC_ vars (.env.local + Vercel env) → Authentication → URL
+   Configuration: add http://localhost:3000/** and https://<domain>/** to
+   Redirect URLs (magic links are rejected without this). */
 import { createClient, type SupabaseClient, type User as SupaUser } from "@supabase/supabase-js";
+import { SITE } from "./site";
 import type { Artist } from "./data";
 
 let client: SupabaseClient | null = null;
@@ -30,26 +31,33 @@ function getClient(): SupabaseClient | null {
   return client;
 }
 
-/* ---------- auth ---------- */
+/* ---------- auth (magic link) ---------- */
 
-export async function cloudSignUp(email: string, password: string): Promise<{
-  user: SupaUser | null; hasSession: boolean; needsConfirmation: boolean; error: string | null;
-}> {
+/** Sends the magic link. Resolves null on success, error message on failure. */
+export async function cloudRequestLink(email: string): Promise<string | null> {
   const sb = getClient();
-  if (!sb) return { user: null, hasSession: false, needsConfirmation: false, error: "Cloud saving is not configured." };
-  const { data, error } = await sb.auth.signUp({ email: email.toLowerCase().trim(), password });
-  if (error) return { user: null, hasSession: false, needsConfirmation: false, error: friendlyAuthError(error.message) };
-  return { user: data.user, hasSession: !!data.session, needsConfirmation: !data.session, error: null };
+  if (!sb) return "Cloud saving is not configured.";
+  const clean = email.toLowerCase().trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return "Please enter a valid email.";
+  const { error } = await sb.auth.signInWithOtp({
+    email: clean,
+    options: { emailRedirectTo: `${SITE.baseUrl}/auth/callback` },
+  });
+  if (error) return friendlyAuthError(error.message);
+  return null;
 }
 
-export async function cloudSignIn(email: string, password: string): Promise<{
-  user: SupaUser | null; error: string | null;
-}> {
+/** Call on the callback page (and when polling): picks up the session from
+    the link and resolves the user, or null if the link hasn't landed yet. */
+export async function cloudFinalizeLink(): Promise<SupaUser | null> {
   const sb = getClient();
-  if (!sb) return { user: null, error: "Cloud saving is not configured." };
-  const { data, error } = await sb.auth.signInWithPassword({ email: email.toLowerCase().trim(), password });
-  if (error) return { user: null, error: friendlyAuthError(error.message) };
-  return { user: data.user, error: null };
+  if (!sb) return null;
+  try {
+    const { data } = await sb.auth.getSession();
+    return data.session?.user ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function cloudSignOut() {
@@ -59,16 +67,22 @@ export async function cloudSignOut() {
 export async function cloudSessionUser(): Promise<SupaUser | null> {
   const sb = getClient();
   if (!sb) return null;
-  const { data } = await sb.auth.getSession();
-  return data.session?.user ?? null;
+  try {
+    const { data } = await sb.auth.getSession();
+    return data.session?.user ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function friendlyAuthError(msg: string): string {
-  if (/invalid login credentials/i.test(msg)) return "Wrong email or password.";
-  if (/user already registered/i.test(msg)) return "That email already has an account — sign in instead.";
-  if (/password/i.test(msg) && /short|length|characters/i.test(msg)) return "Password needs at least 6 characters.";
-  if (/email.*confirm/i.test(msg)) return "Check your inbox to confirm your email, then sign in.";
-  return msg || "Something went wrong signing you in.";
+  if (/rate limit|too many|over_email_send_rate_limit/i.test(msg))
+    return "Too many links in a row — wait a minute and try again.";
+  if (/redirect.*not allowed|redirect_uri/i.test(msg))
+    return "This domain isn't allow-listed yet (Supabase → URL Configuration → Redirect URLs).";
+  if (/signups not allowed|sign-up.*disabled/i.test(msg))
+    return "New accounts are paused — ask Maanas for access.";
+  return msg || "Couldn't send the link. Try again.";
 }
 
 /* ---------- data (owner-only) ---------- */

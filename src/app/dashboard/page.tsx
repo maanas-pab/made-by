@@ -51,7 +51,7 @@ function DashInner() {
       <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between border-b hairline">
         <MadeByMark />
         <div className="flex items-center gap-4 text-[13px]">
-          <span className="hidden sm:inline border border-line px-2.5 py-1 text-[12px] text-warmgray" title={isCloud ? "Signed in with a password account" : "Demo sign-in on this browser only"}>
+          <span className="hidden sm:inline border border-line px-2.5 py-1 text-[12px] text-warmgray" title={isCloud ? "Signed in with a magic link" : "Demo sign-in on this browser only"}>
             {isCloud ? `🔒 ${user?.email}` : "demo sign-in"}
           </span>
           <span className="text-warmgray hidden sm:inline">● {savedState} · {artist.published ? "Live" : "Draft"}</span>

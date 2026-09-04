@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore, fileToDataUrl } from "@/lib/store";
@@ -10,7 +10,7 @@ import { SITE } from "@/lib/site";
 const DISCIPLINES = ["Painting", "Photography", "Sculpture", "Mixed Media", "Illustration", "Ceramics", "Textiles", "Digital"];
 
 export default function Create() {
-  const { signInDemo, signUpCloud, isCloud, updateArtist, addArtwork } = useStore();
+  const { signInDemo, requestLink, refreshCloudSession, isCloud, updateArtist, addArtwork } = useStore();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -19,9 +19,9 @@ export default function Create() {
   const [files, setFiles] = useState<string[]>([]);
   const [layout, setLayout] = useState("editorial");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
+  const [linkSent, setLinkSent] = useState(false);
 
   const username = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "") || "you";
 
@@ -32,24 +32,46 @@ export default function Create() {
     setFiles(p => [...p, ...urls].slice(0, 6));
   }
 
+  function applyPage() {
+    updateArtist(username, { name, disciplines: discs, location: location || "Your City", theme: { layout: layout as never, palette: "paper", typeface: "cormorant", spacing: "balanced", bg: "#F5F2EC", fg: "#1C1C1A" }, published: true } as never);
+    files.forEach((src, i) => addArtwork(username, { title: `Untitled No. ${String(i + 1).padStart(2, "0")}`, year: "2026", medium: discs[0] === "Photography" ? "Archival pigment print" : "Oil on canvas", images: [src], available: false } as never));
+  }
+
   async function finish() {
     if (!name.trim()) { setErr("Please tell us your name."); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setErr("Please add a valid email so you can sign back in."); return; }
+    setErr("");
     if (isCloud) {
-      if (password.length < 6) { setErr("Choose a password (6+ characters) — it's the only key to your page."); return; }
-      setErr("");
-      const { error, needsConfirmation } = await signUpCloud(email, password, username);
+      applyPage();
+      const error = await requestLink(email);
       if (error) { setErr(error); return; }
-      if (needsConfirmation) setInfo("Account created — check your inbox to confirm your email, then sign in from any device.");
+      setLinkSent(true);
+      setInfo(`Magic link sent to ${email} — check your inbox and open it on this device.`);
     } else {
       signInDemo(email, username);
+      setTimeout(() => { applyPage(); router.push(`/${username}`); }, 150);
     }
-    setTimeout(() => {
-      updateArtist(username, { name, disciplines: discs, location: location || "Your City", theme: { layout: layout as never, palette: "paper", typeface: "cormorant", spacing: "balanced", bg: "#F5F2EC", fg: "#1C1C1A" }, published: true } as never);
-      files.forEach((src, i) => addArtwork(username, { title: `Untitled No. ${String(i + 1).padStart(2, "0")}`, year: "2026", medium: discs[0] === "Photography" ? "Archival pigment print" : "Oil on canvas", images: [src], available: false } as never));
-      router.push(`/${username}`);
-    }, 150);
   }
+
+  async function checkNow() {
+    const ok = await refreshCloudSession();
+    if (ok) router.push(`/${username}`);
+    else setInfo("Not yet — click the link in your email first (on this device).");
+  }
+
+  // After the link is sent, glide in the moment they click it.
+  useEffect(() => {
+    if (!linkSent) return;
+    let alive = true;
+    const id = setInterval(async () => {
+      if (await refreshCloudSession()) {
+        clearInterval(id);
+        if (alive) router.push(`/${username}`);
+      }
+    }, 2500);
+    const stop = setTimeout(() => clearInterval(id), 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(id); clearTimeout(stop); };
+  }, [linkSent, refreshCloudSession, router, username]);
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col">
@@ -106,17 +128,10 @@ export default function Create() {
             <p className="text-[13px] text-warmgray mt-1">{location || "Your City"} · {discs.join(" / ")}</p>
             <p className="text-[13px] mt-4 border border-line inline-block px-4 py-2">{SITE.domain}/{username}</p>
           </div>
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className="micro-label block mb-2">Email to claim it</label>
-              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" />
-            </div>
-            {isCloud && (
-              <div>
-                <label className="micro-label block mb-2">Password — the only key to your page</label>
-                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="•••••••• (6+ characters)" autoComplete="new-password" />
-              </div>
-            )}
+          <div className="mt-6">
+            <label className="micro-label block mb-2">Email to claim it</label>
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" />
+            {isCloud && <p className="text-[12px] text-warmgray mt-2">We&apos;ll email you a magic link — no password, nothing to remember. Open it on this device.</p>}
           </div></>
         )}
         {err && <p role="alert" className="text-[13px] text-red-800 mt-4">{err}</p>}
@@ -125,7 +140,9 @@ export default function Create() {
           <div>{step > 1 && <button onClick={() => { setStep(s => s - 1); setErr(""); }} className="text-[13px] underline underline-offset-4 hover:opacity-60">← Back</button>}</div>
           {step < 6
             ? <Button onClick={() => { if (step === 1 && !name.trim()) { setErr("Please tell us your name."); return; } setErr(""); setStep(s => s + 1); }}>Continue →</Button>
-            : <Button onClick={finish}>Publish my page →</Button>}
+            : linkSent
+              ? <Button onClick={checkNow}>I clicked it →</Button>
+              : <Button onClick={finish}>Publish my page →</Button>}
         </div>
         <p className="text-center mt-8 text-[12px] text-warmgray"><Link href="/" className="hover:text-ink">Never mind — take me home</Link></p>
       </main>

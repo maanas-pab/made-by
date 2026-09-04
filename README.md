@@ -28,9 +28,10 @@ Demo artists: `/mayachen` (editorial), `/sofiaalvarez` (archive), `/eliaspark` (
 
 ## Accounts that can't be stolen (read this)
 
-Sign-in is password-based (Supabase Auth). The database refuses every read and
-write unless it comes from the row's owner (`supabase/schema.sql` RLS) — typing
-someone else's email gets you nowhere without their password.
+Sign-in is magic-link (Supabase Auth, no passwords). Enter your email → click
+the link → you're in. The database refuses every read and write unless it comes
+from the row's owner (`supabase/schema.sql` RLS) — typing someone else's email
+gets you nowhere, because the link goes to THEIR inbox, not yours.
 
 Without Supabase keys the app runs in clearly-labeled local demo mode
 ("demo sign-in" chip in the dashboard, warning on the sign-in page).
@@ -40,10 +41,15 @@ Without Supabase keys the app runs in clearly-labeled local demo mode
 Local-first: everything autosaves to the browser. For cross-device saving:
 
 1. Create a free project at supabase.com → SQL editor → run `supabase/schema.sql`
-2. Supabase dashboard → Authentication → Sign In/Up → turn OFF "Confirm email"
-   (instant testing; turn back on for real launch)
+2. Supabase dashboard → Authentication → URL Configuration:
+   - Site URL → `https://madebyart.vercel.app`
+   - Redirect URLs → add `http://localhost:3000/**` AND `https://madebyart.vercel.app/**`
+   (magic links are rejected without this — it's the step everyone misses)
 3. Copy Project URL + anon key into `.env.local` (see `.env.example`)
 4. Same two values → Vercel Project Settings → Environment Variables → redeploy
+
+Email delivery works out of the box (Supabase's mailer, rate-limited — fine for
+testing; add your own SMTP before real launch).
 
 Then sign-ins pull the user's page down on any device, and every edit backs up
 to Postgres (dashboard shows "Saved to cloud"). Without the keys, the app runs
