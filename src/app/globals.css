@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap');
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #F5F2EC;
+  color: #1C1C1A;
+  font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #1C1C1A;
+  color: #F5F2EC;
+}
+
+.serif {
+  font-family: "Cormorant Garamond", "Instrument Serif", Georgia, serif;
+}
+
+.micro-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.hairline {
+  border-color: #D9D5CC;
+}
+
+.art-img {
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1), opacity 400ms ease, filter 400ms ease;
+}
+.art-frame {
+  overflow: hidden;
+  background: #E9E3D6;
+}
+.art-frame:hover .art-img {
+  transform: scale(1.025);
+}
+
+.fade-up {
+  animation: fadeUp 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.exhibition-fade {
+  animation: exhFade 420ms ease both;
+}
+@keyframes exhFade {
+  from { opacity: 0; transform: scale(0.985); filter: blur(4px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+.page-fade {
+  animation: pageFade 500ms ease both;
+}
+@keyframes pageFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+a, button {
+  transition: opacity 200ms ease, background 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+
+:focus-visible {
+  outline: 2px solid #1C1C1A;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+input, textarea, select {
+  background: transparent;
+}
+input::placeholder, textarea::placeholder {
+  color: #8A877F;
+}
