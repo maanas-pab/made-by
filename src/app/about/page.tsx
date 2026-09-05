@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SiteTopbar, SiteFooter, MicroLabel } from "@/components/ui";
-import { SITE } from "@/lib/site";
 export const metadata = { title: "About — made by" };
 export default function About() {
   return (
@@ -24,7 +23,7 @@ export default function About() {
             that, so I&apos;m building the quiet, beautiful home I always wished existed. It&apos;s free, and
             it&apos;s personal: if something feels wrong, tell me and I&apos;ll fix it.
           </p>
-          <p className="text-[14px] mt-4">— Maanas · <a href={`mailto:${SITE.email}`} className="border-b border-current pb-0.5 hover:opacity-60">{SITE.email}</a></p>
+          <p className="text-[14px] mt-4">— Maanas · <a href="mailto:works.maanas@gmail.com" className="border-b border-current pb-0.5 hover:opacity-60">works.maanas@gmail.com</a></p>
         </div>
         <div className="mt-8">
           <Link href="/create" className="inline-block bg-ink text-paper px-6 py-3 text-[14px] mt-2 hover:opacity-85">Make something worth finding</Link>
