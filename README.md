@@ -55,6 +55,11 @@ Then sign-ins pull the user's page down on any device, and every edit backs up
 to Postgres (dashboard shows "Saved to cloud"). Without the keys, the app runs
 in local demo mode — nothing breaks.
 
+Published pages are PUBLIC (that's the product): anyone can read them, no
+login. Writes stay owner-only. If you edited `supabase/schema.sql` earlier,
+re-run the whole file in the SQL editor — it's idempotent — to add the
+public-read policy. Contact emails are public by design (printed on the page).
+
 ## Deploy (GitHub → Vercel)
 
 ```bash

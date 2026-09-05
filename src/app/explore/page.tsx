@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SiteTopbar, SiteFooter, MicroLabel } from "@/components/ui";
-import { DEMO_ARTISTS } from "@/lib/data";
 import ExploreClient from "./explore-client";
 
 export const metadata = { title: "Explore — made by" };
@@ -13,7 +12,7 @@ export default function ExplorePage() {
         <MicroLabel>Explore</MicroLabel>
         <h1 className="serif text-5xl mt-2 mb-2">A catalogue, not a feed.</h1>
         <p className="text-[14px] text-warmgray max-w-lg mb-8">No likes. No follower counts. Just artists, organised the way a fair or catalogue would organise them.</p>
-        <ExploreClient artists={DEMO_ARTISTS} />
+        <ExploreClient />
       </main>
       <SiteFooter />
     </div>

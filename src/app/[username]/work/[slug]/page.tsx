@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useStore } from "@/lib/store";
+import { usePublicArtist, LoadingWall } from "@/lib/use-public-artist";
 import { ArtistTopbar } from "@/components/artist";
 import { SiteFooter } from "@/components/ui";
 
 export default function WorkDetail({ params }: { params: { username: string; slug: string } }) {
-  const { getArtist } = useStore();
-  const artist = getArtist(params.username);
+  const { artist, loading } = usePublicArtist(params.username);
+  if (loading) return <div className="min-h-screen bg-paper text-ink"><LoadingWall /></div>;
   if (!artist) return <div className="p-20 text-center serif text-3xl">Artist not found.</div>;
   const work = artist.artworks.find(w => w.slug === params.slug);
   if (!work) {

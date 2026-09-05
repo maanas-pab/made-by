@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { usePublicArtist, LoadingWall } from "@/lib/use-public-artist";
 import { ArtistTopbar, ArtistHero, Portfolio, AvailableWork, Exhibitions, SeriesSection, StudioNotes, AboutContact, ExhibitionMode } from "@/components/artist";
 import { SiteFooter } from "@/components/ui";
 
@@ -15,10 +15,9 @@ export default function ArtistPage({ params }: { params: { username: string } })
 }
 
 function Inner({ username }: { username: string }) {
-  const { getArtist } = useStore();
+  const { artist, loading } = usePublicArtist(username);
   const search = useSearchParams();
   const router = useRouter();
-  const artist = getArtist(username);
   const view = search.get("view");
   const section = search.get("section");
   useEffect(() => {
@@ -33,6 +32,14 @@ function Inner({ username }: { username: string }) {
     if (!section) return ["portfolio", "available", "exhibitions", "series", "studio", "about"];
     return [section];
   }, [section]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-paper text-ink">
+        <LoadingWall />
+      </div>
+    );
+  }
 
   if (!artist) {
     return (

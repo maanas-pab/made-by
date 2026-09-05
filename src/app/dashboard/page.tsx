@@ -209,8 +209,15 @@ function DashInner() {
                   say("Added to studio.");
                 }} /></label>
                 <div className="grid grid-cols-3 gap-2 mt-3">{artist.studio.map(s => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={s.id} src={s.image} alt={s.caption} className="aspect-square object-cover w-full border border-line" />))}</div>
+                  <figure key={s.id} className="relative group/studio">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={s.image} alt={s.caption} className="aspect-square object-cover w-full border border-line" />
+                    <button
+                      onClick={() => { if (confirm("Remove this studio image?")) updateArtist(artist.username, { studio: artist.studio.filter(x => x.id !== s.id) }); say("Removed from studio."); }}
+                      aria-label="Remove studio image"
+                      className="absolute top-1.5 right-1.5 bg-paper border border-line w-7 h-7 text-[13px] opacity-0 group-hover/studio:opacity-100 focus:opacity-100 hover:border-ink"
+                    >✕</button>
+                  </figure>))}</div>
               </div>
             </div>
           )}

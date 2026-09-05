@@ -27,3 +27,11 @@ create policy "owner insert" on profiles
 drop policy if exists "owner update" on profiles;
 create policy "owner update" on profiles
   for update using (auth.uid() = id) with check (auth.uid() = id);
+
+-- Published portfolios are the product: anyone may READ them (no login).
+-- Contact emails are public by design (printed on the page for inquiries).
+-- Writes stay strictly owner-only (policies above). Re-run this whole file
+-- any time to apply: it is idempotent.
+drop policy if exists "public read" on profiles;
+create policy "public read" on profiles
+  for select using (true);

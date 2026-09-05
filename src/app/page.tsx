@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MadeByMark, ArrowLink, SiteFooter } from "@/components/ui";
 import { DEMO_ARTISTS } from "@/lib/data";
 import { SITE } from "@/lib/site";
+import ArtistExamples from "@/components/artist-examples";
 
 export default function Home() {
   const maya = DEMO_ARTISTS[0];
@@ -90,27 +91,7 @@ export default function Home() {
         </section>
 
         {/* artist examples — each looks different because art is different */}
-        <section className="mt-16">
-          <div className="flex items-end justify-between mb-6">
-            <h2 className="serif text-4xl">Made by artists</h2>
-            <ArrowLink href="/explore">Explore all</ArrowLink>
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            {DEMO_ARTISTS.slice(1).map(a => (
-              <Link key={a.username} href={`/${a.username}`} className="border border-line group" style={{ background: a.theme.bg, color: a.theme.fg }}>
-                <div className="art-frame aspect-[4/3]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.artworks[0].images[0]} alt={a.artworks[0].title} loading="lazy" className="art-img w-full h-full object-cover" />
-                </div>
-                <div className="p-5">
-                  <p className="micro-label opacity-60 mb-1">{a.location}{a.demo && <span className="ml-2 border border-current px-1.5 py-0.5">Demo</span>}</p>
-                  <p className="serif text-3xl">{a.name}</p>
-                  <p className="text-[13px] opacity-70 mt-1">{a.disciplines.join(" / ")}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
+        <ArtistExamples />
 
         {/* philosophy */}
         <section className="mt-20 grid md:grid-cols-2 gap-10 border-t hairline pt-12">

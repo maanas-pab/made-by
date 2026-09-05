@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useStore } from "@/lib/store";
+import { usePublicArtist, LoadingWall } from "@/lib/use-public-artist";
 import { artistPath, artistUrl } from "@/lib/site";
 
 export default function ArtistCard({ params }: { params: { username: string } }) {
-  const { getArtist } = useStore();
-  const artist = getArtist(params.username);
+  const { artist, loading } = usePublicArtist(params.username);
+  if (loading) return <div className="min-h-screen bg-paper text-ink"><LoadingWall /></div>;
   if (!artist) return <div className="p-20 text-center">Not found.</div>;
   const url = artistPath(artist.username);
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&color=1C1C1A&bgcolor=FBFAF7&data=${encodeURIComponent(artistUrl(artist.username))}`;

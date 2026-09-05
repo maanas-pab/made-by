@@ -34,16 +34,22 @@ function getClient(): SupabaseClient | null {
 /* ---------- auth (magic link) ---------- */
 
 /** Sends the magic link. Resolves null on success, error message on failure. */
+let lastLinkSentAt = 0;
 export async function cloudRequestLink(email: string): Promise<string | null> {
   const sb = getClient();
   if (!sb) return "Cloud saving is not configured.";
   const clean = email.toLowerCase().trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return "Please enter a valid email.";
+  // Client-side throttle: one link per 45s so nobody (and no double-click)
+  // trips Supabase's send limits by accident.
+  const wait = Math.ceil((45000 - (Date.now() - lastLinkSentAt)) / 1000);
+  if (wait > 0) return `Link already on its way — check your inbox (and spam). You can request a new one in ${wait}s.`;
+  lastLinkSentAt = Date.now();
   const { error } = await sb.auth.signInWithOtp({
     email: clean,
     options: { emailRedirectTo: `${SITE.baseUrl}/auth/callback` },
   });
-  if (error) return friendlyAuthError(error.message);
+  if (error) { lastLinkSentAt = 0; return friendlyAuthError(error.message); }
   return null;
 }
 
@@ -76,8 +82,8 @@ export async function cloudSessionUser(): Promise<SupaUser | null> {
 }
 
 function friendlyAuthError(msg: string): string {
-  if (/rate limit|too many|over_email_send_rate_limit/i.test(msg))
-    return "Too many links in a row — wait a minute and try again.";
+  if (/rate limit|too many|over_email_send_rate_limit|email rate limit exceeded/i.test(msg))
+    return "Email provider is being protective — wait a couple of minutes and try once.";
   if (/redirect.*not allowed|redirect_uri/i.test(msg))
     return "This domain isn't allow-listed yet (Supabase → URL Configuration → Redirect URLs).";
   if (/signups not allowed|sign-up.*disabled/i.test(msg))
@@ -121,4 +127,36 @@ export async function saveRemoteById(uid: string, email: string, username: strin
     { onConflict: "id" }
   );
   return !error;
+}
+
+/* ---------- public reading (no login needed) ---------- */
+/* Published portfolios are public by design — that's the whole product.
+   Contact emails are public too (they're printed on the page for inquiries).
+   Everything else stays owner-only. */
+
+export async function loadPublicArtist(username: string): Promise<Artist | null> {
+  const sb = getClient();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from("profiles")
+    .select("data")
+    .eq("username", username.toLowerCase())
+    .maybeSingle();
+  if (error || !data) return null;
+  const arts = (data.data as { artists?: Artist[] })?.artists ?? [];
+  const found = arts.find(a => a.username.toLowerCase() === username.toLowerCase());
+  return found && found.published ? found : null;
+}
+
+export async function loadPublicArtists(): Promise<Artist[]> {
+  const sb = getClient();
+  if (!sb) return [];
+  const { data, error } = await sb.from("profiles").select("data").limit(100);
+  if (error || !data) return [];
+  const seen = new Map<string, Artist>();
+  for (const row of data) {
+    const arts = ((row.data as { artists?: Artist[] })?.artists ?? []).filter(a => a.published);
+    for (const a of arts) if (!seen.has(a.username.toLowerCase())) seen.set(a.username.toLowerCase(), a);
+  }
+  return Array.from(seen.values());
 }

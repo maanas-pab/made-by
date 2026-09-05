@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useStore } from "@/lib/store";
+import { usePublicArtist, LoadingWall } from "@/lib/use-public-artist";
 import { ArtistTopbar, ArtImg } from "@/components/artist";
 import { SiteFooter } from "@/components/ui";
 
 export default function SeriesDetail({ params }: { params: { username: string; slug: string } }) {
-  const { getArtist } = useStore();
-  const artist = getArtist(params.username);
+  const { artist, loading } = usePublicArtist(params.username);
+  if (loading) return <div className="min-h-screen bg-paper text-ink"><LoadingWall /></div>;
   if (!artist) return <div className="p-20 text-center">Not found.</div>;
   const s = artist.series.find(x => x.slug === params.slug);
   if (!s) return <div className="p-20 text-center"><p className="serif text-4xl">Series not found.</p><Link className="underline" href={`/${artist.username}`}>← Back</Link></div>;

@@ -125,6 +125,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t);
   }, [artists, user, cloudUid, loaded]);
 
+  // Other tabs on this browser edit → follow along live.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LS_ARTISTS && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length) setArtists(parsed);
+        } catch {}
+      }
+      if (e.key === LS_USER) {
+        try { setUser(e.newValue ? JSON.parse(e.newValue) : null); } catch {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const api: Store = useMemo(() => ({
     user, artists,
     myUsername: user?.username ?? null,
