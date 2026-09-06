@@ -10,7 +10,7 @@ import { SITE } from "@/lib/site";
 const DISCIPLINES = ["Painting", "Photography", "Sculpture", "Mixed Media", "Illustration", "Ceramics", "Textiles", "Digital"];
 
 export default function Create() {
-  const { signInDemo, requestLink, refreshCloudSession, isCloud, updateArtist, addArtwork } = useStore();
+  const { signInDemo, requestLink, refreshCloudSession, isCloud, ensureArtist, updateArtist, addArtwork } = useStore();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -33,6 +33,9 @@ export default function Create() {
   }
 
   function applyPage() {
+    // The page must EXIST under your name before customizing it —
+    // otherwise every typed detail falls into the void.
+    ensureArtist(username, email);
     updateArtist(username, { name, disciplines: discs, location: location || "Your City", theme: { layout: layout as never, palette: "paper", typeface: "cormorant", spacing: "balanced", bg: "#F5F2EC", fg: "#1C1C1A" }, published: true } as never);
     files.forEach((src, i) => addArtwork(username, { title: `Untitled No. ${String(i + 1).padStart(2, "0")}`, year: "2026", medium: discs[0] === "Photography" ? "Archival pigment print" : "Oil on canvas", images: [src], available: false } as never));
   }
