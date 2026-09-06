@@ -17,6 +17,8 @@ interface Store {
   requestLink: (email: string) => Promise<string | null>;
   /** Picks up a clicked magic link (or resumed session). True when signed in. */
   refreshCloudSession: () => Promise<boolean>;
+  /** Guarantees a page row exists for this username (no-op if present). */
+  ensureArtist: (username: string, email: string) => void;
   signOut: () => void;
   getArtist: (username: string) => Artist | undefined;
   updateArtist: (username: string, patch: Partial<Artist>) => void;
@@ -225,19 +227,32 @@ export function Providers({ children }: { children: React.ReactNode }) {
           setUser(u);
           persistLocalUser(u);
         } else if (su.email) {
-          // First arrival (new account, or email just confirmed): adopt this device's page.
-          const uname = su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "");
-          const u = { email: su.email, username: uname };
+          const email = su.email;
+          // First arrival: prefer the page this email claimed during
+          // onboarding over a guess derived from the email address.
+          let uname = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "");
+          try {
+            const raw = localStorage.getItem("madeby.pending.v1");
+            if (raw) {
+              const p = JSON.parse(raw);
+              if (p && typeof p.email === "string" && p.email.toLowerCase() === email.toLowerCase() && typeof p.username === "string" && p.username) {
+                uname = p.username;
+              }
+              localStorage.removeItem("madeby.pending.v1");
+            }
+          } catch {}
+          const u = { email, username: uname };
           setUser(u);
           persistLocalUser(u);
-          ensureArtist(uname, u.email);
+          ensureArtist(uname, email);
         }
         return true;
       } catch {
         return false;
       }
     },
-    signOut: () => { cloudSignOut().catch(() => {}); setCloudUid(null); setUser(null); persistLocalUser(null); },
+    ensureArtist,
+    signOut: () => { cloudSignOut().catch(() => {}); setCloudUid(null); setUser(null); persistLocalUser(null); try { localStorage.removeItem("madeby.pending.v1"); } catch {} },
     getArtist: (username) => artists.find(a => a.username.toLowerCase() === username.toLowerCase()),
     updateArtist: (username, patch) => commit(prev => prev.map(a => a.username === username ? { ...a, ...patch } : a)),
     addArtwork: (username, a) => commit(prev => prev.map(p => {

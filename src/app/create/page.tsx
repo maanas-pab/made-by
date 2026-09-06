@@ -43,6 +43,9 @@ export default function Create() {
     setErr("");
     if (isCloud) {
       applyPage();
+      // Remember which page this email claimed, so the post-link sign-in
+      // opens THIS page — not a fresh empty one derived from the email.
+      try { localStorage.setItem("madeby.pending.v1", JSON.stringify({ email: email.toLowerCase(), username })); } catch {}
       const error = await requestLink(email);
       if (error) { setErr(error); return; }
       setLinkSent(true);

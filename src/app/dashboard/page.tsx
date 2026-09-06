@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useStore, fileToDataUrl } from "@/lib/store";
 import { MadeByMark, Input, Textarea, Select, Field, Button, MicroLabel, EmptyState } from "@/components/ui";
@@ -13,14 +13,20 @@ export default function Dashboard() {
 }
 function DashInner() {
   const store = useStore();
-  const { user, myUsername, isCloud, getArtist, updateArtist, addArtwork, updateArtwork, deleteArtwork, moveArtwork, addExhibition, deleteExhibition, addSeries, addNote, deleteNote, signOut, savedState } = store;
+  const { user, myUsername, isCloud, ensureArtist, getArtist, updateArtist, addArtwork, updateArtwork, deleteArtwork, moveArtwork, addExhibition, deleteExhibition, addSeries, addNote, deleteNote, signOut, savedState } = store;
   const [tab, setTab] = useState<Tab>("portfolio");
   const [toast, setToast] = useState("");
 
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const artist = myUsername ? getArtist(myUsername) : undefined;
 
-  if (!user || !artist) {
+  // Signed in but the page row is missing (e.g. first arrival mid-sync):
+  // guarantee it instead of bouncing back to sign-in.
+  useEffect(() => {
+    if (user && myUsername && !getArtist(myUsername)) ensureArtist(myUsername, user.email);
+  }, [user, myUsername, artist, getArtist, ensureArtist]);
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-paper text-ink">
         <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between border-b hairline"><MadeByMark /><Link href="/" className="text-[13px]">← Home</Link></div>
@@ -31,6 +37,14 @@ function DashInner() {
             <Button href="/signin">Sign in</Button><Button href="/create" variant="line">Make a page</Button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!artist) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex items-center justify-center">
+        <p className="serif text-3xl opacity-60">Preparing your studio…</p>
       </div>
     );
   }
