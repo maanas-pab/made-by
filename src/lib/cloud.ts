@@ -82,6 +82,8 @@ export async function cloudSessionUser(): Promise<SupaUser | null> {
 }
 
 function friendlyAuthError(msg: string): string {
+  if (/error sending.*email|smtp|mailer/i.test(msg))
+    return "The mail sender refused it — recheck SMTP (app password with no spaces, sender matches the account), or switch custom SMTP off to use the built-in sender.";
   if (/rate limit|too many|over_email_send_rate_limit|email rate limit exceeded/i.test(msg))
     return "Email provider is being protective — wait a couple of minutes and try once.";
   if (/redirect.*not allowed|redirect_uri/i.test(msg))
