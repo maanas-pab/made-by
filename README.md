@@ -45,6 +45,9 @@ Local-first: everything autosaves to the browser. For cross-device saving:
    - Site URL → `https://madebyart.vercel.app`
    - Redirect URLs → add `http://localhost:3000/**` AND `https://madebyart.vercel.app/**`
    (magic links are rejected without this — it's the step everyone misses)
+3. Supabase dashboard → Authentication → Sign In/Up → turn OFF "Confirm email".
+   With it ON, a new user's first link only confirms the address without
+   signing them in — an endless login loop. OFF = one click, they're in.
 3. Copy Project URL + anon key into `.env.local` (see `.env.example`)
 4. Same two values → Vercel Project Settings → Environment Variables → redeploy
 

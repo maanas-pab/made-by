@@ -9,7 +9,6 @@
    Configuration: add http://localhost:3000/** and https://<domain>/** to
    Redirect URLs (magic links are rejected without this). */
 import { createClient, type SupabaseClient, type User as SupaUser } from "@supabase/supabase-js";
-import { SITE } from "./site";
 import type { Artist } from "./data";
 
 let client: SupabaseClient | null = null;
@@ -45,9 +44,12 @@ export async function cloudRequestLink(email: string): Promise<string | null> {
   const wait = Math.ceil((45000 - (Date.now() - lastLinkSentAt)) / 1000);
   if (wait > 0) return `Link already on its way — check your inbox (and spam). You can request a new one in ${wait}s.`;
   lastLinkSentAt = Date.now();
+  // Redirect back to THIS origin (localhost, preview, or production) —
+  // never a baked-in domain, or the session lands in the wrong browser place.
+  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
   const { error } = await sb.auth.signInWithOtp({
     email: clean,
-    options: { emailRedirectTo: `${SITE.baseUrl}/auth/callback` },
+    options: { emailRedirectTo: redirectTo },
   });
   if (error) { lastLinkSentAt = 0; return friendlyAuthError(error.message); }
   return null;

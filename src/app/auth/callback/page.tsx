@@ -10,6 +10,7 @@ export default function AuthCallback() {
   const { refreshCloudSession, isCloud } = useStore();
   const router = useRouter();
   const [err, setErr] = useState("");
+  const [hint, setHint] = useState("");
   const tried = useRef(false);
 
   useEffect(() => {
@@ -21,7 +22,8 @@ export default function AuthCallback() {
         if (await refreshCloudSession()) { router.replace("/dashboard"); return; }
         await new Promise(r => setTimeout(r, 800));
       }
-      setErr("That link didn't work — it may have expired or been opened on a different device. Request a fresh one.");
+      setErr("That link didn't sign you in.");
+      setHint("Two usual causes: it was opened in a different browser than the one that requested it (Gmail's in-app browser counts as different — open it in the same browser), or it was a first-time confirmation link, in which case just request one more link and you'll glide in.");
     })();
   }, [isCloud, refreshCloudSession, router]);
 
@@ -38,6 +40,7 @@ export default function AuthCallback() {
         ) : (
           <><p className="serif text-4xl mt-2">That link fizzled.</p>
           <p className="text-[14px] text-warmgray mt-3 max-w-sm">{err}</p>
+          {hint && <p className="text-[13px] text-ink/70 mt-3 max-w-sm">{hint}</p>}
           <Button href="/signin" className="mt-6">Try again →</Button></>
         )}
         <p className="text-[12px] text-warmgray mt-8"><Link href="/" className="hover:text-ink">Home</Link></p>
