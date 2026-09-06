@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Artist, DEMO_ARTISTS, Artwork, Exhibition, Series, FieldNote, StudioItem } from "./data";
 import { cloudEnabled, loadRemoteById, saveRemoteById, cloudRequestLink, cloudFinalizeLink, cloudSignOut, cloudSessionUser } from "./cloud";
 
@@ -36,12 +36,45 @@ const Ctx = createContext<Store | null>(null);
 const LS_ARTISTS = "madeby.artists.v3";
 const LS_USER = "madeby.user.v1";
 
+interface Envelope { v: 1; updatedAt: string; artists: Artist[]; }
+
+function readEnvelope(): Envelope | null {
+  try {
+    const raw = localStorage.getItem(LS_ARTISTS);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { v: 1, updatedAt: "", artists: parsed };
+    if (parsed && Array.isArray(parsed.artists)) return { v: 1, updatedAt: parsed.updatedAt || "", artists: parsed.artists };
+  } catch {}
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [artists, setArtists] = useState<Artist[]>(DEMO_ARTISTS);
   const [savedState, setSavedState] = useState("Saved");
   const [loaded, setLoaded] = useState(false);
   const [cloudUid, setCloudUid] = useState<string | null>(null);
+
+  // Version discipline (the whole save system rests on this):
+  // - lastTsRef always describes the CURRENT artists array.
+  // - commit() = a real local edit → mints a fresh timestamp.
+  // - adopt() = incoming data (cloud pull, other tab) → keeps ITS timestamp.
+  // - the save effect only ever persists { lastTsRef, artists } — it never
+  //   mints. So a tab holding stale data can never outrank fresh data.
+  const lastTsRef = useRef("");
+  const latestRef = useRef({ artists, user, cloudUid });
+  latestRef.current = { artists, user, cloudUid };
+
+  const commit = (fn: (prev: Artist[]) => Artist[]) => {
+    lastTsRef.current = new Date().toISOString();
+    setArtists(fn);
+  };
+
+  const adopt = (next: Artist[], ts: string) => {
+    lastTsRef.current = ts;
+    setArtists(next);
+  };
 
   const persistLocalUser = (u: User | null) => {
     try {
@@ -67,48 +100,53 @@ export function Providers({ children }: { children: React.ReactNode }) {
   });
 
   const ensureArtist = (uname: string, email: string) =>
-    setArtists(prev => (prev.find(a => a.username === uname) ? prev : [...prev, freshArtistFor(uname, email)]));
+    commit(prev => (prev.find(a => a.username === uname) ? prev : [...prev, freshArtistFor(uname, email)]));
 
   useEffect(() => {
     (async () => {
-      let nextArtists = DEMO_ARTISTS;
+      const env = readEnvelope();
+      let nextArtists = env && env.artists.length ? env.artists : DEMO_ARTISTS;
+      let nextTs = env?.updatedAt || "";
       let nextUser: User | null = null;
       try {
-        const a = localStorage.getItem(LS_ARTISTS);
         const u = localStorage.getItem(LS_USER);
-        if (a) {
-          const parsed = JSON.parse(a);
-          if (Array.isArray(parsed) && parsed.length) nextArtists = parsed;
-        }
         if (u) nextUser = JSON.parse(u);
       } catch {}
       if (cloudEnabled()) {
-        // Resume a real session if one exists; its cloud page wins.
         try {
           const su = await cloudSessionUser();
           if (su) {
             setCloudUid(su.id);
             const remote = await loadRemoteById(su.id);
-            if (remote && remote.artists.length) {
+            const remoteTs = remote?.updatedAt || "";
+            if (remote && remote.artists.length && remoteTs !== "" && remoteTs >= nextTs) {
+              // Cloud is genuinely newer → adopt it (timestamp travels along).
               nextArtists = remote.artists;
+              nextTs = remoteTs;
               nextUser = { email: remote.email, username: remote.username };
               persistLocalUser(nextUser);
-            } else if (su.email) {
-              nextUser = { email: su.email, username: nextUser?.username ?? su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "") };
+            } else {
+              if (su.email) nextUser = { email: su.email, username: nextUser?.username ?? su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "") };
+              // Local is newer (or cloud empty): push it up so other devices catch up.
+              if (nextUser) saveRemoteById(su.id, nextUser.email, nextUser.username, nextArtists).catch(() => {});
             }
           }
         } catch {}
       }
+      lastTsRef.current = nextTs;
       setArtists(nextArtists);
       setUser(nextUser);
       setLoaded(true);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
+    // Persist WITHOUT minting: the stamp belongs to the data, set by
+    // commit()/adopt(). Rewriting the same stamp is harmless.
     try {
-      localStorage.setItem(LS_ARTISTS, JSON.stringify(artists));
+      localStorage.setItem(LS_ARTISTS, JSON.stringify({ v: 1, updatedAt: lastTsRef.current, artists }));
       if (user) localStorage.setItem(LS_USER, JSON.stringify(user));
     } catch {}
     setSavedState("Saving…");
@@ -121,17 +159,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
         } catch {}
       }
       setSavedState(user && cloudEnabled() && !cloudUid ? "Sign in to save online" : "Saved · this device");
-    }, 900);
+    }, 500);
     return () => clearTimeout(t);
   }, [artists, user, cloudUid, loaded]);
 
-  // Other tabs on this browser edit → follow along live.
+  // Other tabs on this browser edit → follow along live, but only forward
+  // (incoming timestamp must beat ours).
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === LS_ARTISTS && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed) && parsed.length) setArtists(parsed);
+          const arts = Array.isArray(parsed) ? parsed : parsed.artists;
+          const ts = Array.isArray(parsed) ? "" : (parsed.updatedAt || "");
+          if (Array.isArray(arts) && arts.length && ts >= lastTsRef.current) adopt(arts, ts);
         } catch {}
       }
       if (e.key === LS_USER) {
@@ -140,6 +181,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Leaving / closing mid-save: flush the latest state to the cloud now
+  // instead of letting the debounce die with the tab.
+  useEffect(() => {
+    const flush = () => {
+      const s = latestRef.current;
+      if (!s.user || !s.cloudUid || !cloudEnabled()) return;
+      saveRemoteById(s.cloudUid, s.user.email, s.user.username, s.artists).catch(() => {});
+    };
+    const onVis = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   const api: Store = useMemo(() => ({
@@ -162,7 +220,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         setCloudUid(su.id);
         const remote = await loadRemoteById(su.id).catch(() => null);
         if (remote && remote.artists.length) {
-          setArtists(remote.artists);
+          adopt(remote.artists, remote.updatedAt || "");
           const u = { email: remote.email, username: remote.username };
           setUser(u);
           persistLocalUser(u);
@@ -181,13 +239,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
     signOut: () => { cloudSignOut().catch(() => {}); setCloudUid(null); setUser(null); persistLocalUser(null); },
     getArtist: (username) => artists.find(a => a.username.toLowerCase() === username.toLowerCase()),
-    updateArtist: (username, patch) => setArtists(prev => prev.map(a => a.username === username ? { ...a, ...patch } : a)),
-    addArtwork: (username, a) => setArtists(prev => prev.map(p => {
+    updateArtist: (username, patch) => commit(prev => prev.map(a => a.username === username ? { ...a, ...patch } : a)),
+    addArtwork: (username, a) => commit(prev => prev.map(p => {
       if (p.username !== username) return p;
       const id = `w${Date.now()}`;
       const order = p.artworks.length;
+      const taken = new Set(p.artworks.map(w => w.slug));
+      let slug = a.slug || `work-${order + 1}`;
+      if (taken.has(slug)) slug = `${slug}-${Date.now().toString(36)}`;
       const art: Artwork = {
-        id, slug: a.slug || `work-${order + 1}`, title: a.title || "Untitled", year: a.year || "2026",
+        id, slug, title: a.title || "Untitled", year: a.year || "2026",
         medium: a.medium || "Oil on canvas", dimensions: a.dimensions || "",
         description: a.description || "", price: a.price || "", showPrice: a.showPrice ?? true,
         available: a.available ?? false, showInquire: a.showInquire ?? true,
@@ -196,9 +257,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       };
       return { ...p, artworks: [...p.artworks, art] };
     })),
-    updateArtwork: (username, id, patch) => setArtists(prev => prev.map(p => p.username === username ? { ...p, artworks: p.artworks.map(w => w.id === id ? { ...w, ...patch } : w) } : p)),
-    deleteArtwork: (username, id) => setArtists(prev => prev.map(p => p.username === username ? { ...p, artworks: p.artworks.filter(w => w.id !== id) } : p)),
-    moveArtwork: (username, id, dir) => setArtists(prev => prev.map(p => {
+    updateArtwork: (username, id, patch) => commit(prev => prev.map(p => p.username === username ? { ...p, artworks: p.artworks.map(w => w.id === id ? { ...w, ...patch } : w) } : p)),
+    deleteArtwork: (username, id) => commit(prev => prev.map(p => p.username === username ? { ...p, artworks: p.artworks.filter(w => w.id !== id) } : p)),
+    moveArtwork: (username, id, dir) => commit(prev => prev.map(p => {
       if (p.username !== username) return p;
       const arr = [...p.artworks].sort((x, y) => x.order - y.order);
       const i = arr.findIndex(w => w.id === id);
@@ -207,7 +268,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       [arr[i], arr[j]] = [arr[j], arr[i]];
       return { ...p, artworks: arr.map((w, k) => ({ ...w, order: k })) };
     })),
-    addExhibition: (username, e) => setArtists(prev => prev.map(p => {
+    addExhibition: (username, e) => commit(prev => prev.map(p => {
       if (p.username !== username) return p;
       const ex: Exhibition = {
         id: `e${Date.now()}`, slug: e.slug || "new-exhibition", title: e.title || "Untitled Exhibition",
@@ -216,18 +277,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
       };
       return { ...p, exhibitions: [ex, ...p.exhibitions] };
     })),
-    deleteExhibition: (username, id) => setArtists(prev => prev.map(p => p.username === username ? { ...p, exhibitions: p.exhibitions.filter(e => e.id !== id) } : p)),
-    addSeries: (username, s) => setArtists(prev => prev.map(p => {
+    deleteExhibition: (username, id) => commit(prev => prev.map(p => p.username === username ? { ...p, exhibitions: p.exhibitions.filter(e => e.id !== id) } : p)),
+    addSeries: (username, s) => commit(prev => prev.map(p => {
       if (p.username !== username) return p;
       const se: Series = { id: `s${Date.now()}`, slug: s.slug || "new-series", title: s.title || "New Series", dateRange: s.dateRange || "2026", description: s.description || "", cover: s.cover || (p.artworks[0]?.images[0] || "") };
       return { ...p, series: [...p.series, se] };
     })),
-    addNote: (username, n) => setArtists(prev => prev.map(p => {
+    addNote: (username, n) => commit(prev => prev.map(p => {
       if (p.username !== username) return p;
       const note: FieldNote = { id: `n${Date.now()}`, index: String(p.notes.length + 1).padStart(2, "0"), text: n.text || "", date: n.date || "Now" };
       return { ...p, notes: [...p.notes, note] };
     })),
-    deleteNote: (username, id) => setArtists(prev => prev.map(p => p.username === username ? { ...p, notes: p.notes.filter(n => n.id !== id) } : p)),
+    deleteNote: (username, id) => commit(prev => prev.map(p => p.username === username ? { ...p, notes: p.notes.filter(n => n.id !== id) } : p)),
   }), [user, artists, savedState]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

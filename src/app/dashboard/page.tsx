@@ -93,7 +93,7 @@ function DashInner() {
           {tab === "portfolio" && (
             <div>
               <div className="flex items-center justify-between mb-5"><h2 className="serif text-3xl">Portfolio</h2>
-                <label className="border border-line px-4 py-2 text-[13px] cursor-pointer hover:border-ink">+ Add work<input type="file" accept="image/*" multiple className="hidden" onChange={e => handleUpload(e.target.files)} /></label></div>
+                <label className="border border-line px-4 py-2 text-[13px] cursor-pointer hover:border-ink">+ Add work<input type="file" accept="image/*" multiple className="hidden" onChange={e => { handleUpload(e.target.files); e.target.value = ""; }} /></label></div>
               {!works.length ? <EmptyState title="Your wall is empty." body="Upload your first work." /> : (
                 <div className="space-y-3">
                   {works.map((w, i) => (
