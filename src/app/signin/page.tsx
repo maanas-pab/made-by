@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
@@ -12,6 +12,14 @@ export default function SignIn() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [cool, setCool] = useState(0);
+
+  // Visible cooldown so nobody hammers the provider's send limits.
+  useEffect(() => {
+    if (!sent || cool <= 0) return;
+    const id = setInterval(() => setCool(c => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [sent, cool]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,6 +30,7 @@ export default function SignIn() {
       setBusy(false);
       if (error) { setErr(error); return; }
       setSent(true);
+      setCool(45);
     } else {
       signInDemo(email);
       router.push("/dashboard");
@@ -51,7 +60,20 @@ export default function SignIn() {
             <p className="serif text-4xl mt-2">The link is on its way.</p>
             <p className="text-[14px] text-warmgray mt-4">We sent a sign-in link to <span className="text-ink">{email}</span>. Open it on <em>this device</em> — no password, nothing to remember.</p>
             <Button onClick={checkNow} className="mt-6 w-full">I clicked it →</Button>
-            <button onClick={() => setSent(false)} className="text-[12px] text-warmgray underline underline-offset-4 mt-4">Use a different email</button>
+            <button
+              disabled={busy || cool > 0}
+              onClick={async () => {
+                setBusy(true); setErr("");
+                const error = await requestLink(email);
+                setBusy(false);
+                if (error) { setErr(error); return; }
+                setCool(45);
+              }}
+              className="text-[12px] text-warmgray underline underline-offset-4 mt-4 disabled:no-underline disabled:opacity-60"
+            >
+              {cool > 0 ? `Resend link (${cool}s)` : "Resend link"}
+            </button>
+            <button onClick={() => setSent(false)} className="block mx-auto text-[12px] text-warmgray underline underline-offset-4 mt-2">Use a different email</button>
             {err && <p role="alert" className="text-[13px] text-red-800 mt-3">{err}</p>}
           </div>
         ) : (
