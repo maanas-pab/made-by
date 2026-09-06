@@ -128,7 +128,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
               nextUser = { email: remote.email, username: remote.username };
               persistLocalUser(nextUser);
             } else {
-              if (su.email) nextUser = { email: su.email, username: nextUser?.username ?? su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "") };
+              // No cloud row yet: never glue a stale local identity onto a
+              // fresh session. Reuse the local username ONLY when the emails
+              // match (same account, row not yet written); otherwise the
+              // session email decides and old leftovers are ignored.
+              if (su.email) {
+                const sameAccount = !!nextUser && nextUser.email.toLowerCase() === su.email.toLowerCase();
+                nextUser = {
+                  email: su.email,
+                  username: sameAccount && nextUser!.username
+                    ? nextUser!.username
+                    : su.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, ""),
+                };
+              }
               // Local is newer (or cloud empty): push it up so other devices catch up.
               if (nextUser) saveRemoteById(su.id, nextUser.email, nextUser.username, nextArtists).catch(() => {});
             }
